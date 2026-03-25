@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>College Bus Selector — Bus Details</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div class="app-wrapper">
+        <div class="details-page">
+
+            <header class="details-header">
+                <button class="back-btn" onclick="history.back()">←</button>
+                <h2>Bus Details</h2>
+                <div style="width:40px"></div>
+            </header>
+
+            <div class="details-content" id="details-content">
+                <div class="empty-state"><span class="empty-emoji">⏳</span>
+                    <h3>Loading bus details…</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Modal -->
+    <div class="modal-overlay" id="alert-modal">
+        <div class="modal-card">
+            <span class="modal-emoji" id="modal-emoji">✅</span>
+            <h3 class="modal-title" id="modal-title">Success</h3>
+            <p class="modal-subtitle" id="modal-msg">Your bus selection is completed.</p>
+            <button class="modal-btn" id="modal-close-btn" onclick="closeModal()">OK</button>
+        </div>
+    </div>
+
+    <script>
+
+const API = "http://localhost:5002/api";
+
+const token = localStorage.getItem("cbs_token");
+const role = localStorage.getItem("cbs_role");
+
+if (!token) {
+    window.location.href = "index.html";
+}
+
+const busId = sessionStorage.getItem("cbs_selected_bus");
+
+if (!busId) {
+    window.location.href = "home.html";
+}
+
+let bus = null;
+let booked = false;
+
+function fillPct() {
+    return Math.round(((bus.totalSeats - bus.availableSeats) / bus.totalSeats) * 100);
+}
+
+function isFull() {
+    return bus.availableSeats === 0;
+}
+
+function progColor() {
+    if (isFull()) return "#ef4444";
+    if (fillPct() > 70) return "#f59e0b";
+    return bus.color;
+}
+
+async function loadBus() {
+
+    try {
+
+        const res = await fetch(`${API}/buses/${busId}`);
+
+        const data = await res.json();
+
+        if (!data.success) {
+            window.location.href = "home.html";
+            return;
+        }
+
+        bus = data.bus;
+
+        render();
+
+    } catch {
+
+        document.getElementById("details-content").innerHTML =
+            `<div class="empty-state">
+                <span class="empty-emoji">❌</span>
+                <h3>Cannot connect to server</h3>
+            </div>`;
+
+    }
+
+}
+
+function render() {
+
+    const full = isFull();
+    const pct = fillPct();
+
+    document.getElementById("details-content").innerHTML = `
+    
+    <div class="hero-card" style="border-top-color:${full ? "#ef4444" : bus.color}">
+    
+        <div class="hero-top">
+        
+            <div class="hero-bus-icon" style="background:${bus.color}22">🚌</div>
+            
+            <div>
+                <div class="hero-num-label">Bus Number</div>
+                <div class="hero-num" style="color:${bus.color}">
+                    ${bus.busNumber}
+                </div>
+            </div>
+
+            <span class="status-pill ${full ? "full" : "available"}">
+                ${full ? "● Full" : "● Available"}
+            </span>
+
+        </div>
+
+        <div class="hero-route">📍 ${bus.route}</div>
+
+    </div>
+
+    <div class="info-card">
+
+        <div class="section-title">Bus Information</div>
+
+        <div class="info-row">
+            <div class="info-row-icon">👨‍✈️</div>
+            <div>
+                <div class="info-label">Driver Name</div>
+                <div class="info-value">${bus.driverName}</div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="info-row">
+            <div class="info-row-icon">📞</div>
+            <div>
+                <div class="info-label">Driver Mobile</div>
+                <div class="info-value blue">${bus.driverMobile}</div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="info-row">
+            <div class="info-row-icon">⏰</div>
+            <div>
+                <div class="info-label">Timing</div>
+                <div class="info-value">${bus.timing}</div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="info-row">
+            <div class="info-row-icon">💺</div>
+            <div>
+                <div class="info-label">Total Seats</div>
+                <div class="info-value">${bus.totalSeats}</div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="info-row">
+            <div class="info-row-icon">✅</div>
+            <div>
+                <div class="info-label">Available Seats</div>
+                <div class="info-value ${full ? "red" : "green"}">
+                    ${full ? "No seats available" : bus.availableSeats + " seats left"}
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <button class="book-btn ${booked ? "booked" : full ? "full" : ""}"
+        id="book-btn"
+        onclick="handleBook()"
+        ${booked ? "disabled" : ""}>
+
+        ${booked ? "✓ Seat Booked!" : full ? "⚠️ Bus Full" : "🎟️ Book a Seat"}
+
+    </button>
+
+    <div style="height:40px"></div>
+    `;
+
+}
+
+async function handleBook() {
+
+    const btn = document.getElementById("book-btn");
+
+    btn.textContent = "⏳ Processing…";
+    btn.disabled = true;
+
+    try {
+
+        const res = await fetch(`${API}/bookings`, {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+
+            body: JSON.stringify({
+                busId: bus._id
+            })
+
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+
+            bus.availableSeats--;
+
+            booked = true;
+
+            render();
+
+            alert("✅ Booking confirmed");
+
+        } else {
+
+            alert(data.message || "Booking failed");
+
+            btn.textContent = "🎟️ Book a Seat";
+            btn.disabled = false;
+
+        }
+
+    } catch {
+
+        alert("❌ Cannot connect to server");
+
+        btn.textContent = "🎟️ Book a Seat";
+        btn.disabled = false;
+
+    }
+
+}
+
+loadBus();
+
+</script>
+</body>
+
+</html>

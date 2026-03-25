@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>College Bus Selector — Login</title>
+    <meta name="description" content="Login to College Bus Selector to find and book your bus." />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div class="app-wrapper">
+        <div class="login-page">
+
+            <div class="login-logo">
+                <div class="bus-icon">🚌</div>
+                <h1>College Bus <span>Selector</span></h1>
+                <p>Find &amp; book your college bus easily</p>
+            </div>
+
+            <div class="login-card">
+                <h2>Welcome Back! 👋</h2>
+                <p class="sub">Sign in to continue</p>
+
+                <!-- Role Toggle -->
+                <div class="role-toggle">
+                    <button class="role-btn active" id="btn-student" onclick="setRole('student')">🎓 Student</button>
+                    <button class="role-btn" id="btn-faculty" onclick="setRole('faculty')">👨‍🏫 Faculty</button>
+                </div>
+
+                <!-- Server Error Banner -->
+                <div class="auth-error" id="auth-error">⚠️ &nbsp;<span id="auth-error-msg">Invalid username or
+                        password.</span></div>
+
+                <!-- Username -->
+                <label class="form-label" for="username">Username</label>
+                <div class="input-wrap" id="wrap-username">
+                    <span class="input-icon">👤</span>
+                    <input type="text" id="username" placeholder="e.g. student1" autocomplete="username" />
+                </div>
+                <span class="field-error" id="err-username">Please enter your username</span>
+
+                <!-- Password -->
+                <label class="form-label" for="password">Password</label>
+                <div class="input-wrap" id="wrap-password">
+                    <span class="input-icon">🔒</span>
+                    <input type="password" id="password" placeholder="Enter your password"
+                        autocomplete="current-password" />
+                    <button class="eye-btn" id="eye-btn" onclick="togglePassword()">👁️</button>
+                </div>
+                <span class="field-error" id="err-password">Please enter your password</span>
+
+                <div class="forgot-row">
+                    <button class="forgot-link" onclick="openForgot()">Forgot Password?</button>
+                </div>
+
+                <button class="login-btn" id="login-btn" onclick="handleLogin()">Login &nbsp;→</button>
+
+                <div class="demo-hint" id="demo-hint">
+                    <div class="hint-title">Demo Credentials</div>
+                    <p id="demo-text">Username: <strong>student1</strong> &nbsp; Password: <strong>pass123</strong></p>
+                </div>
+            </div>
+
+            <p class="login-footer">Powered by College Transport System · MongoDB Backend</p>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div class="modal-overlay" id="forgot-modal">
+        <div class="modal-card" id="forgot-content">
+            <span class="modal-emoji">🔑</span>
+            <h3 class="modal-title">Reset Password</h3>
+            <p class="modal-subtitle">Enter your registered email to receive a reset link.</p>
+            <input class="modal-input" type="email" id="forgot-email" placeholder="Enter your email" />
+            <button class="modal-btn" id="forgot-btn" onclick="submitForgot()">Send Reset Link</button>
+            <button class="modal-cancel" onclick="closeForgot()">Cancel</button>
+        </div>
+        <div class="modal-card" id="forgot-success" style="display:none">
+            <span class="modal-emoji">✅</span>
+            <h3 class="modal-title">Email Sent!</h3>
+            <p class="modal-subtitle" id="forgot-sent-text">Reset link sent.</p>
+            <button class="modal-btn success" onclick="closeForgot()">OK, Got it!</button>
+        </div>
+    </div>
+
+    <script>
+
+const API = 'http://localhost:5002/api';
+let role = "student";
+let showPass = false;
+
+// Redirect if already logged in
+if (localStorage.getItem("cbs_token")) {
+    location.href = "home.html";
+}
+
+function setRole(r) {
+
+    role = r;
+
+    document.getElementById("btn-student").classList.toggle("active", r === "student");
+    document.getElementById("btn-faculty").classList.toggle("active", r === "faculty");
+
+    clearErrors();
+    document.getElementById("auth-error").classList.remove("show");
+
+    document.getElementById("demo-text").innerHTML =
+        r === "student"
+            ? "Username: <strong>student1</strong> &nbsp; Password: <strong>pass123</strong>"
+            : "Username: <strong>faculty1</strong> &nbsp; Password: <strong>fpass123</strong>";
+
+    document.getElementById("username").placeholder =
+        r === "student" ? "e.g. student1" : "e.g. faculty1";
+}
+
+function togglePassword() {
+
+    showPass = !showPass;
+
+    document.getElementById("password").type = showPass ? "text" : "password";
+
+    document.getElementById("eye-btn").textContent = showPass ? "🙈" : "👁️";
+
+}
+
+function clearErrors() {
+
+    ["username", "password"].forEach(f => {
+
+        document.getElementById("wrap-" + f).classList.remove("error");
+        document.getElementById("err-" + f).classList.remove("show");
+
+    });
+
+}
+
+function showFieldError(f) {
+
+    document.getElementById("wrap-" + f).classList.add("error");
+    document.getElementById("err-" + f).classList.add("show");
+
+}
+
+function validate() {
+
+    let ok = true;
+
+    if (!document.getElementById("username").value.trim()) {
+        showFieldError("username");
+        ok = false;
+    }
+
+    if (!document.getElementById("password").value.trim()) {
+        showFieldError("password");
+        ok = false;
+    }
+
+    return ok;
+
+}
+
+async function handleLogin() {
+
+    clearErrors();
+
+    document.getElementById("auth-error").classList.remove("show");
+
+    if (!validate()) return;
+
+    const btn = document.getElementById("login-btn");
+
+    btn.textContent = "⏳ Signing in…";
+    btn.disabled = true;
+
+    try {
+
+        const res = await fetch(`${API}/auth/login`, {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                username: document.getElementById("username").value.trim(),
+                password: document.getElementById("password").value.trim()
+            })
+
+        });
+
+        const data = await res.json();
+
+        console.log("Login response:", data);
+
+        if (data.token) {
+
+            // verify role
+            if (data.role !== role) {
+
+                document.getElementById("auth-error-msg").textContent =
+                    "Wrong role selected for this account";
+
+                document.getElementById("auth-error").classList.add("show");
+
+                btn.textContent = "Login  →";
+                btn.disabled = false;
+
+                return;
+            }
+
+            localStorage.setItem("cbs_token", data.token);
+            localStorage.setItem("cbs_role", data.role);
+
+            btn.textContent = "✓ Success!";
+            btn.style.background = "#16a34a";
+
+            setTimeout(() => {
+
+                window.location.href = "home.html";
+
+            }, 600);
+
+        }
+
+        else {
+
+            document.getElementById("auth-error-msg").textContent =
+                data.message || "Invalid credentials";
+
+            document.getElementById("auth-error").classList.add("show");
+
+            btn.textContent = "Login  →";
+            btn.disabled = false;
+
+        }
+
+    }
+
+    catch (err) {
+
+        console.log(err);
+
+        document.getElementById("auth-error-msg").textContent =
+            "Cannot connect to server. Is the server running?";
+
+        document.getElementById("auth-error").classList.add("show");
+
+        btn.textContent = "Login  →";
+        btn.disabled = false;
+
+    }
+
+}
+
+document.addEventListener("keydown", e => {
+
+    if (e.key === "Enter") handleLogin();
+
+});
+
+["username", "password"].forEach(f => {
+
+    document.getElementById(f).addEventListener("input", () => {
+
+        document.getElementById("wrap-" + f).classList.remove("error");
+        document.getElementById("err-" + f).classList.remove("show");
+        document.getElementById("auth-error").classList.remove("show");
+
+    });
+
+});
+
+</script>
+</body>
+
+</html>

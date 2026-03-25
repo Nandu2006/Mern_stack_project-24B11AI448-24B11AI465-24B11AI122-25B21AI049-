@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>College Bus Selector — Home</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div class="app-wrapper">
+        <div class="home-page">
+
+            <header class="home-header">
+                <div class="header-logo">🚌 College <span>Bus</span></div>
+                <div class="header-right">
+                    <span class="role-badge" id="role-badge">Student</span>
+                    <button class="logout-btn" onclick="handleLogout()" title="Logout">⏻</button>
+                </div>
+            </header>
+
+            <div class="home-content">
+                <div class="greeting">
+                    <div>
+                        <div class="greet-small">Good day,</div>
+                        <div class="greet-name" id="greet-name">Loading…</div>
+                        <div class="greet-id" id="greet-id">ID: ---</div>
+                    </div>
+                    <div class="avatar" id="avatar">?</div>
+                </div>
+
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-num" id="stat-total">—</div>
+                        <div class="stat-label">Buses Found</div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-num" id="stat-available">—</div>
+                        <div class="stat-label">Available</div>
+                    </div>
+                    <div class="stat-card red">
+                        <div class="stat-num" id="stat-full">—</div>
+                        <div class="stat-label">Full</div>
+                    </div>
+                </div>
+
+                <div class="search-wrap">
+                    <span class="search-icon">🔍</span>
+                    <input class="search-input" id="search-input" type="text"
+                        placeholder="Search by location, bus no, driver…" oninput="handleSearch(this.value)" />
+                    <span class="clear-btn" id="clear-btn" onclick="clearSearch()">✕</span>
+                </div>
+                <div class="results-label" id="results-label">Loading buses…</div>
+
+                <div class="bus-list" id="bus-list">
+                    <div class="empty-state"><span class="empty-emoji">⏳</span>
+                        <h3>Loading buses from server…</h3>
+                    </div>
+                </div>
+                <div class="empty-state" id="empty-state" style="display:none">
+                    <span class="empty-emoji">🚫</span>
+                    <h3>No buses found</h3>
+                    <p>Try searching "Main Gate", "North Campus", or "Metro"</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+   <script>
+
+const API = "http://localhost:5002/api";
+
+const token = localStorage.getItem("cbs_token");
+const role = localStorage.getItem("cbs_role");
+
+// ✅ Redirect if not logged in
+if (!token) {
+    window.location.href = "index.html";
+}
+
+// ✅ Greeting info
+document.getElementById("greet-name").textContent =
+    role === "faculty" ? "Faculty 👋" : "Student 👋";
+
+document.getElementById("greet-id").textContent =
+    role === "faculty" ? "Faculty Account" : "Student Account";
+
+document.getElementById("avatar").textContent =
+    role === "faculty" ? "F" : "S";
+
+document.getElementById("role-badge").textContent =
+    role === "faculty" ? "👨‍🏫 Faculty" : "🎓 Student";
+
+let debounceTimer = null;
+
+// ✅ Initial load
+fetchBuses("");
+
+// ✅ Fetch buses from backend
+async function fetchBuses(q) {
+
+    try {
+
+        const url = q
+            ? `${API}/buses?role=${role}&q=${encodeURIComponent(q)}`
+            : `${API}/buses?role=${role}`;
+
+        const res = await fetch(url);
+
+        const data = await res.json();
+
+        if (data.success && data.buses) {
+            renderBuses(data.buses, q);
+        } else {
+            showError("No buses found");
+        }
+
+    } catch (err) {
+
+        console.log(err);
+
+        showError("Cannot connect to server.");
+
+    }
+
+}
+
+// ✅ Search handler
+function handleSearch(q) {
+
+    document.getElementById("clear-btn").style.display =
+        q.length > 0 ? "block" : "none";
+
+    clearTimeout(debounceTimer);
+
+    debounceTimer = setTimeout(() => fetchBuses(q), 300);
+
+}
+
+// ✅ Clear search
+function clearSearch() {
+
+    document.getElementById("search-input").value = "";
+    document.getElementById("clear-btn").style.display = "none";
+
+    fetchBuses("");
+
+}
+
+// ✅ Render buses
+function renderBuses(buses, q) {
+
+    const list = document.getElementById("bus-list");
+    const empty = document.getElementById("empty-state");
+
+    if (!buses || buses.length === 0) {
+        list.innerHTML = "";
+        empty.style.display = "block";
+        return;
+    }
+
+    empty.style.display = "none";
+
+    const avail = buses.filter(b => b.availableSeats > 0).length;
+    const full = buses.filter(b => b.availableSeats === 0).length;
+
+    document.getElementById("stat-total").textContent = buses.length;
+    document.getElementById("stat-available").textContent = avail;
+    document.getElementById("stat-full").textContent = full;
+
+    document.getElementById("results-label").textContent = q
+        ? `Results for "${q}" — ${buses.length} found`
+        : `All Buses — ${buses.length} routes`;
+
+    list.innerHTML = buses.map((b, i) => {
+
+        const isFull = b.availableSeats === 0;
+
+        // fallback color if not present
+        const color = b.color || "#3b82f6";
+
+        const badge = isFull
+            ? `<span class="seat-badge full">● Full</span>`
+            : `<span class="seat-badge available">● ${b.availableSeats} seats</span>`;
+
+        return `
+        <a class="bus-card" href="bus-details.html"
+           onclick="selectBus('${b._id}')"
+           style="border-left-color:${color}; animation-delay:${i * 0.04}s">
+
+            <div class="bus-card-top">
+
+                <div class="bus-num-wrap">
+
+                    <div class="bus-icon-sm" style="background:${color}22">
+                        ${isFull ? "🚫" : "🚌"}
+                    </div>
+
+                    <div>
+                        <div class="bus-number" style="color:${color}">
+                            Bus ${b.busNumber}
+                        </div>
+
+                        <div class="bus-number-sub">
+                            ${b.route}
+                        </div>
+                    </div>
+
+                </div>
+
+                ${badge}
+
+            </div>
+
+        </a>`;
+
+    }).join("");
+
+}
+
+// ✅ Error display
+function showError(msg) {
+
+    document.getElementById("bus-list").innerHTML =
+        `<div class="empty-state">
+            <span class="empty-emoji">❌</span>
+            <h3>Error</h3>
+            <p>${msg}</p>
+        </div>`;
+
+}
+
+// ✅ Store selected bus
+function selectBus(id) {
+
+    sessionStorage.setItem("cbs_selected_bus", id);
+
+}
+
+// ✅ Logout
+function handleLogout() {
+
+    localStorage.removeItem("cbs_token");
+    localStorage.removeItem("cbs_role");
+
+    window.location.href = "index.html";
+
+}
+
+</script>
+</body>
+
+</html>
